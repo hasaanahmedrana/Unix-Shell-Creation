@@ -22,8 +22,12 @@ Version 2 of a custom UNIX shell extends the basic functionalities by adding sup
 ---
 
 ## Known Issues and Bugs
+#### Version 1:
 - Commands requiring complex input/output redirection or piping are not implemented in this version.
 - Background process handling is not yet supported.
+#### Version 2:
+- Background process handling is not yet supported.
+- 
 ---
 ## Resources
 - **Video Lecture**: [UNIX Shell Development](https://youtu.be/F7oAWvh5J_o?si=_DK3xzetUApoysV-) by Arif Butt
