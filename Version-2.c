@@ -10,7 +10,7 @@
 #define MAX_LEN 512
 #define MAXARGS 10
 #define ARGLEN 30
-#define PROMPT "MyShell:- "
+#define PROMPT "ShellOfHasaan:- "
 
 int execute(char *arglist[], int input_fd, int output_fd);
 char **tokenize(char *cmdline);
@@ -56,7 +56,7 @@ int execute(char *arglist[], int input_fd, int output_fd) {
         }
 
         execvp(arglist[0], arglist);
-        perror("!...command not found...!");
+        perror("Command Not Found");
         exit(1);
     } else {
         int status;
@@ -68,8 +68,16 @@ int execute(char *arglist[], int input_fd, int output_fd) {
 // Tokenize the command line input into arguments
 char **tokenize(char *cmdline) {
     char **arglist = (char **)malloc(sizeof(char *) * (MAXARGS + 1));
+    if (arglist == NULL) {
+        perror("malloc failed");
+        exit(1);
+    }
     for (int j = 0; j < MAXARGS + 1; j++) {
         arglist[j] = (char *)malloc(sizeof(char) * ARGLEN);
+        if (arglist[j] == NULL) {
+            perror("malloc failed");
+            exit(1);
+        }
         bzero(arglist[j], ARGLEN);
     }
     if (cmdline[0] == '\0')
@@ -101,6 +109,10 @@ char *read_cmd(char *prompt, FILE *fp) {
     int c;
     int pos = 0;
     char *cmdline = (char *)malloc(sizeof(char) * MAX_LEN);
+    if (cmdline == NULL) {
+        perror("malloc failed");
+        exit(1);
+    }
     while ((c = getc(fp)) != EOF) {
         if (c == '\n')
             break;
