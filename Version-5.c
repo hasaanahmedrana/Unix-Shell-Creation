@@ -14,18 +14,31 @@
 #define PROMPT "ShellOfHasaan:- "
 #define MAX_HISTORY 10
 #define MAX_ALIASES 10
+#define MAX_JOBS 10
 
 typedef struct {
     char name[ARGLEN];
     char command[MAX_LEN];
 } Alias;
 
-int execute(char* cmd[], char* history[], int* history_count, Alias aliases[], int* alias_count);
+typedef struct {
+    int job_id;
+    pid_t pid;
+    char command[MAX_LEN];
+} Job;
+
+int execute(char* cmd[], char* history[], int* history_count, Alias aliases[], int* alias_count, Job jobs[], int* job_count);
 char** tokenize(char* cmdline);
 char* read_cmd(char*, FILE*);
 void add_to_history(char* cmd, char* history[], int* history_count);
 void set_alias(char* name, char* command, Alias aliases[], int* alias_count);
 char* get_alias(char* name, Alias aliases[], int alias_count);
+void list_jobs(Job jobs[], int job_count);
+void remove_job(Job jobs[], int* job_count, pid_t pid);
+void add_job(Job jobs[], int* job_count, pid_t pid, char* command);
+void print_help();
+void remove_alias(char* name, Alias aliases[], int* alias_count);
+Job* find_job_by_id(Job jobs[], int job_count, int job_id);
 
 // Global job counter to number background jobs
 int job_counter = 1;
@@ -54,6 +67,8 @@ int main() {
     int history_count = 0; // Count of commands in history
     Alias aliases[MAX_ALIASES] = { { "", "" } }; // Alias array
     int alias_count = 0; // Count of aliases
+    Job jobs[MAX_JOBS] = { { 0, 0, "" } }; // Job array
+    int job_count = 0; // Count of jobs
 
     while((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
         // Check for command history repeat
@@ -103,7 +118,7 @@ int main() {
                     cmdline = strdup(alias_command);
                     cmd = tokenize(cmdline);
                 }
-                execute(cmd, history, &history_count, aliases, &alias_count);
+                execute(cmd, history, &history_count, aliases, &alias_count, jobs, &job_count);
             }
             for(int j = 0; j < MAXARGS + 1; j++) free(cmd[j]);
             free(cmd);
@@ -157,7 +172,67 @@ char* get_alias(char* name, Alias aliases[], int alias_count) {
     return NULL;
 }
 
-int execute(char* cmd[], char* history[], int* history_count, Alias aliases[], int* alias_count) {
+void remove_alias(char* name, Alias aliases[], int* alias_count) {
+    for (int i = 0; i < *alias_count; i++) {
+        if (strcmp(aliases[i].name, name) == 0) {
+            for (int j = i; j < *alias_count - 1; j++) {
+                aliases[j] = aliases[j + 1];
+            }
+            (*alias_count)--;
+            return;
+        }
+    }
+    printf("unalias: no such alias: %s\n", name);
+}
+
+void list_jobs(Job jobs[], int job_count) {
+    for (int i = 0; i < job_count; i++) {
+        printf("[%d] %d %s\n", jobs[i].job_id, jobs[i].pid, jobs[i].command);
+    }
+}
+
+void remove_job(Job jobs[], int* job_count, pid_t pid) {
+    for (int i = 0; i < *job_count; i++) {
+        if (jobs[i].pid == pid) {
+            for (int j = i; j < *job_count - 1; j++) {
+                jobs[j] = jobs[j + 1];
+            }
+            (*job_count)--;
+            return;
+        }
+    }
+}
+
+void add_job(Job jobs[], int* job_count, pid_t pid, char* command) {
+    if (*job_count < MAX_JOBS) {
+        jobs[*job_count].job_id = job_counter++;
+        jobs[*job_count].pid = pid;
+        strncpy(jobs[*job_count].command, command, MAX_LEN);
+        (*job_count)++;
+    } else {
+        printf("Job limit reached.\n");
+    }
+}
+
+Job* find_job_by_id(Job jobs[], int job_count, int job_id) {
+    for (int i = 0; i < job_count; i++) {
+        if (jobs[i].job_id == job_id) {
+            return &jobs[i];
+        }
+    }
+    return NULL;
+}
+
+void print_help() {
+    printf("Available built-in commands:\n");
+    printf("cd <directory>: Change the working directory\n");
+    printf("exit: Terminate the shell\n");
+    printf("jobs: List background jobs\n");
+    printf("kill <job_id>: Terminate a background job\n");
+    printf("help: List available built-in commands and their syntax\n");
+}
+
+int execute(char* cmd[], char* history[], int* history_count, Alias aliases[], int* alias_count, Job jobs[], int* job_count) {
     int background = 0;
     int in = -1, out = -1;
     int num_cmds = 0;
@@ -178,6 +253,32 @@ int execute(char* cmd[], char* history[], int* history_count, Alias aliases[], i
     }
     if (strcmp(cmd[0], "exit") == 0) {
         exit(0);
+    }
+    if (strcmp(cmd[0], "jobs") == 0) {
+        list_jobs(jobs, *job_count);
+        return 1;
+    }
+    if (strcmp(cmd[0], "kill") == 0) {
+        if (cmd[1] == NULL) {
+            fprintf(stderr, "kill: expected job ID\n");
+        } else {
+            int job_id = atoi(cmd[1]);
+            Job* job = find_job_by_id(jobs, *job_count, job_id);
+            if (job != NULL) {
+                if (kill(job->pid, SIGKILL) == 0) {
+                    remove_job(jobs, job_count, job->pid);
+                } else {
+                    perror("kill failed");
+                }
+            } else {
+                fprintf(stderr, "kill: no such job ID: %d\n", job_id);
+            }
+        }
+        return 1;
+    }
+    if (strcmp(cmd[0], "help") == 0) {
+        print_help();
+        return 1;
     }
 
     // Parse command line for background, redirection, and pipes
@@ -272,7 +373,8 @@ int execute(char* cmd[], char* history[], int* history_count, Alias aliases[], i
             wait(NULL);
         }
     } else {
-        printf("[%d] %d\n", job_counter++, pid);  // Print job number and PID for the last background process
+        add_job(jobs, job_count, pid, cmd[0]);
+        printf("[%d] %d\n", job_counter, pid);  // Print job number and PID for the last background process
     }
 
     return 0;
