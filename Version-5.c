@@ -16,20 +16,26 @@
 #define MAX_ALIASES 10
 
 typedef struct {
-    char* alias;
-    char* command;
+    char name[ARGLEN];
+    char command[MAX_LEN];
 } Alias;
 
 int execute(char* cmd[], char* history[], int* history_count, Alias aliases[], int* alias_count);
 char** tokenize(char* cmdline);
 char* read_cmd(char*, FILE*);
 void add_to_history(char* cmd, char* history[], int* history_count);
-void handle_sigchld(int sig);
-void add_alias(char* alias, char* command, Alias aliases[], int* alias_count);
-char* get_alias_command(char* alias, Alias aliases[], int alias_count);
+void set_alias(char* name, char* command, Alias aliases[], int* alias_count);
+char* get_alias(char* name, Alias aliases[], int alias_count);
 
 // Global job counter to number background jobs
 int job_counter = 1;
+
+// Signal handler to reap background processes
+void handle_sigchld(int sig) {
+    int saved_errno = errno;
+    while (waitpid(-1, NULL, WNOHANG) > 0);  // Reap all child processes
+    errno = saved_errno;
+}
 
 int main() {
     // Set up signal handler to handle SIGCHLD for background process reaping
@@ -46,7 +52,7 @@ int main() {
     char** cmd;
     char* history[MAX_HISTORY] = { NULL }; // Command history array
     int history_count = 0; // Count of commands in history
-    Alias aliases[MAX_ALIASES] = { {NULL, NULL} }; // Command alias array
+    Alias aliases[MAX_ALIASES] = { { "", "" } }; // Alias array
     int alias_count = 0; // Count of aliases
 
     while((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
@@ -75,29 +81,30 @@ int main() {
             add_to_history(cmdline, history, &history_count); // Add command to history
         }
 
-        // Check for alias definition
-        if (strncmp(cmdline, "alias ", 6) == 0) {
-            char* alias = strtok(cmdline + 6, "=");
-            char* command = strtok(NULL, "");
-            if (alias && command) {
-                add_alias(alias, command, aliases, &alias_count);
-                printf("Alias added: %s='%s'\n", alias, command);
-            } else {
-                printf("Invalid alias format. Use: alias name='command'\n");
-            }
-            free(cmdline);
-            continue;
-        }
-
-        // Replace alias with actual command
-        char* alias_command = get_alias_command(cmdline, aliases, alias_count);
-        if (alias_command) {
-            free(cmdline);
-            cmdline = strdup(alias_command);
-        }
-
         if((cmd = tokenize(cmdline)) != NULL) {
-            execute(cmd, history, &history_count, aliases, &alias_count);
+            // Check for alias command
+            if (strcmp(cmd[0], "alias") == 0) {
+                if (cmd[1] != NULL) {
+                    char* equal_sign = strchr(cmd[1], '=');
+                    if (equal_sign != NULL) {
+                        *equal_sign = '\0';
+                        set_alias(cmd[1], equal_sign + 1, aliases, &alias_count);
+                    } else {
+                        printf("Invalid alias format. Use alias name=command\n");
+                    }
+                } else {
+                    printf("alias: expected argument\n");
+                }
+            } else {
+                // Check if the command is an alias
+                char* alias_command = get_alias(cmd[0], aliases, alias_count);
+                if (alias_command != NULL) {
+                    free(cmdline);
+                    cmdline = strdup(alias_command);
+                    cmd = tokenize(cmdline);
+                }
+                execute(cmd, history, &history_count, aliases, &alias_count);
+            }
             for(int j = 0; j < MAXARGS + 1; j++) free(cmd[j]);
             free(cmd);
             free(cmdline);
@@ -108,18 +115,7 @@ int main() {
     for (int i = 0; i < history_count; i++) {
         free(history[i]);
     }
-    // Free aliases
-    for (int i = 0; i < alias_count; i++) {
-        free(aliases[i].alias);
-        free(aliases[i].command);
-    }
     return 0;
-}
-
-void handle_sigchld(int sig) {
-    int saved_errno = errno;
-    while (waitpid(-1, NULL, WNOHANG) > 0);  // Reap all child processes
-    errno = saved_errno;
 }
 
 void add_to_history(char* cmd, char* history[], int* history_count) {
@@ -136,19 +132,25 @@ void add_to_history(char* cmd, char* history[], int* history_count) {
     }
 }
 
-void add_alias(char* alias, char* command, Alias aliases[], int* alias_count) {
+void set_alias(char* name, char* command, Alias aliases[], int* alias_count) {
+    for (int i = 0; i < *alias_count; i++) {
+        if (strcmp(aliases[i].name, name) == 0) {
+            strcpy(aliases[i].command, command);
+            return;
+        }
+    }
     if (*alias_count < MAX_ALIASES) {
-        aliases[*alias_count].alias = strdup(alias);
-        aliases[*alias_count].command = strdup(command);
+        strcpy(aliases[*alias_count].name, name);
+        strcpy(aliases[*alias_count].command, command);
         (*alias_count)++;
     } else {
-        printf("Alias limit reached. Cannot add more aliases.\n");
+        printf("Alias limit reached.\n");
     }
 }
 
-char* get_alias_command(char* alias, Alias aliases[], int alias_count) {
+char* get_alias(char* name, Alias aliases[], int alias_count) {
     for (int i = 0; i < alias_count; i++) {
-        if (strcmp(alias, aliases[i].alias) == 0) {
+        if (strcmp(aliases[i].name, name) == 0) {
             return aliases[i].command;
         }
     }
@@ -162,6 +164,21 @@ int execute(char* cmd[], char* history[], int* history_count, Alias aliases[], i
     char* command[MAXARGS][MAXARGS];
     int i, j = 0;
     pid_t pid;  // Declare pid here to capture the last command’s pid for background jobs
+
+    // Handle built-in commands
+    if (strcmp(cmd[0], "cd") == 0) {
+        if (cmd[1] == NULL) {
+            fprintf(stderr, "cd: expected argument\n");
+        } else {
+            if (chdir(cmd[1]) != 0) {
+                perror("chdir failed");
+            }
+        }
+        return 1;
+    }
+    if (strcmp(cmd[0], "exit") == 0) {
+        exit(0);
+    }
 
     // Parse command line for background, redirection, and pipes
     for (i = 0; cmd[i] != NULL; i++) {
