@@ -1,4 +1,4 @@
-# UNIX Shell Assignment 
+_# UNIX Shell Assignment 
 ---
 ## Overview
 #### Version 1:
@@ -10,6 +10,10 @@ Version 2 of a custom UNIX shell extends the basic functionalities by adding sup
 Version 3 of a custom UNIX shell further extends the functionalities by adding support for background process handling and signal handling for reaping background processes.
 #### Version 4:
 Version 4 of a custom UNIX shell includes command history management, allowing users to repeat previous commands using history commands.
+#### Version 5:
+Version 5 of a custom UNIX shell adds support for built-in commands, such as `cd`, `jobs`, `kill`, `help`, and `exit`, and command aliasing.
+#### Version 6:
+Version 6 of a custom UNIX shell adds support for command unaliasing and variable assignment.
 
 
 ---
@@ -32,6 +36,16 @@ Version 4 of a custom UNIX shell includes command history management, allowing u
 - **Command History**: Maintains a history of the last 10 commands entered by the user.
 - **History Commands**: Allows users to repeat previous commands using `!<number>` or `!-1` for the last command.
 
+#### Version 5:
+- **Build-in Commands**: Supports built-in commands such as `cd`, `jobs`, `kill`, `help`and `exit`.
+- **Command Aliasing**: Allows users to create aliases for commands using `alias` and execute them using the alias name.
+
+#### Version 6:
+- **Command Unaliasing**: Allows users to remove aliases using the `unalias` command.
+- **Variable Assignment**: Supports variable assignment using the `var=value` syntax.
+
+
+
 ---
 
 ## Known Issues and Bugs
@@ -43,11 +57,16 @@ Version 4 of a custom UNIX shell includes command history management, allowing u
 #### Version 3:
 - Command history management is not yet supported.
 
+
+## Clone Repository
+```bash  https://github.com/hasaanahmedrana/Assignmenet_01_BSDSF22M027.git```
+
+
 ---
 ## Resources
 - **Video Lecture**: [UNIX Shell Development](https://youtu.be/F7oAWvh5J_o?si=_DK3xzetUApoysV-) by Arif Butt
 - **Textbook**: *Advanced Programming in the UNIX Environment*, by Richard Stevens
 ---
 ## Acknowledgments
-Special thanks to the resource person, Arif Butt, for the guidance provided throughout the assignment.
+Special thanks to the resource person, Arif Butt, for the guidance provided throughout the assignment._
 
