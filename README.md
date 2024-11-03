@@ -59,7 +59,9 @@ Version 6 of a custom UNIX shell adds support for command unaliasing and variabl
 
 
 ## Clone Repository
-```bash  https://github.com/hasaanahmedrana/Assignmenet_01_BSDSF22M027.git```
+```bash  
+  git clone  https://github.com/hasaanahmedrana/Assignmenet_01_BSDSF22M027.git
+```
 
 
 ---
