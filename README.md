@@ -1,4 +1,4 @@
-# UNIX Shell Assignment - Version 1
+# UNIX Shell Assignment 
 ---
 ## Overview
 #### Version 1:
